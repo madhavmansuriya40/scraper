@@ -1,0 +1,37 @@
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore environment files
+.env
+*.env
+
+# Ignore virtual environments
+venv/
+.venv/
+
+# Ignore testing and coverage files
+.coverage
+*.coveragerc
+.tox/
+.nox/
+pytest_cache/
+
+# Ignore development files
+.idea/
+.vscode/
+*.swp
+
+# Ignore Docker-specific files
+Dockerfile
+docker-compose.yml
+
+# Ignore other unnecessary files
+*.log
+*.bak
+*.tmp
+node_modules/
+dist/
+build/
