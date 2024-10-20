@@ -22,29 +22,29 @@ class ScrapingWorker:
         channel.queue_declare(queue='scraping_queue')
 
         def callback(ch, method, properties, body) -> None:
-            # Simulate sending notification [logging messages]
-            ScrapNotifications.send(
-                type=ScrapNotificationsStatusEnum.PROCESSING)
 
             decoded_string = body.decode('utf-8')
             scrape_request_data = json.loads(decoded_string)
+            # Simulate sending notification [logging messages]
+            ScrapNotifications.send(
+                to=scrape_request_data['user'],
+                type=ScrapNotificationsStatusEnum.PROCESSING)
 
             # re-try mechanism, which will re-try failed items for 2 time
-            while scrape_request_data['retry_count'] < 2:
+            while scrape_request_data['retry_count'] < 2:  # number of reties
                 try:
                     scrape_request = ScrapeRequestSchema(
                         **scrape_request_data['request'])
                     data = self.scraper.scrape_catalogue(
                         scrap_req=scrape_request)
 
-                    # Save to DB and cache
-                    self.db_manager.save_data(data=data)
-
                     # updating cache with the latest cache
                     self.cache_manager.set(key=scrape_request.url, value=data)
 
                     # Simulate sending notification [logging messages]
                     ScrapNotifications.send(
+                        to=scrape_request_data['user'],
+                        total_updated=len(data),
                         type=ScrapNotificationsStatusEnum.PROCESSED)
 
                 # TODO: @madhav to revisit and handle the exception properly
@@ -52,6 +52,7 @@ class ScrapingWorker:
                     scrape_request_data['retry_count'] += 1
                     # Simulate sending notification [logging messages]
                     ScrapNotifications.send(
+                        to=scrape_request_data['user'],
                         type=ScrapNotificationsStatusEnum.FAILED)
                     print(ex)
 

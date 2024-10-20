@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 from schemas.schemas import ScrapeRequestSchema
 from cache.mem_cache import MemcachedCache
+from database.json_database import JSONDatabase
 from utils.files import Files
 
 
@@ -60,10 +61,13 @@ class DentalStallScraper:
                 print(f"Using cached data for page: {page}")
                 product_list = DentalStallScraper.__decode_cache(
                     cached_data=cached_data)
-                product_data.append(product_list)
+                for data in product_list:
+                    product_data.append(data)
                 continue
 
-            # if not cached
+            # try finding it from DB
+
+            # if not in DB
             response = requests.get(url, proxies=proxies)
             soup = BeautifulSoup(response.text, 'html.parser')
             # Extract product details
@@ -82,5 +86,10 @@ class DentalStallScraper:
                 cache.set(key=url, value=product_data)
                 product_data.append(
                     {"name": name, "price": amount, "image": local_path})
+
+        # Save to DB and cache
+        db = JSONDatabase()
+        print(f'\n\n\n org data --> {product_data}')
+        db.save_data(data=product_data)
 
         return product_data

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status
 from fastapi.security import HTTPAuthorizationCredentials
 from schemas.schemas import ScrapeRequestSchema, ScrapeResponseSchema
 from utils.auth import authenticate_request
+from utils.user import User
 from queue_manager import QueueManager
 
 
@@ -14,10 +15,12 @@ router = APIRouter(
 @router.post('/dental_stall', status_code=status.HTTP_202_ACCEPTED,  response_model=ScrapeResponseSchema)
 def scrap(request: ScrapeRequestSchema, credentials: HTTPAuthorizationCredentials = Depends(authenticate_request)):
     # when getting any request add it to the queue
+    user = User.get_user()
     try:
         event_payload = {
             'request': request.dict(),
-            'retry_count': 0
+            'retry_count': 0,
+            'user': user
         }
         queue_manager = QueueManager()
         queue_manager.add_to_queue(scrap_req=event_payload)
