@@ -1,18 +1,17 @@
-# external imports
-from fastapi import Depends, HTTPException, status, Header
+import os
+from fastapi import Depends, HTTPException, status
 from fastapi import HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 
-# Define your static token here
-STATIC_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6Im1hZEBtYXguY29tIn0.liqUJFFkNq5O_-lwWnF12xMzRhfV-vrxY1dYM0HRd9s"
+# static token, can be dynamic in future
+STATIC_TOKEN = os.getenv('STATIC_TOKEN')
+
+# HTTPBearer for static token authentication
+token_auth_scheme = HTTPBearer()
 
 
-def authenticate_token(authorization: str = Header(...)):
-    # Extract token from the Authorization header
-    token_type, token = authorization.split(" ")
-    if token_type != "Bearer" or token != STATIC_TOKEN:
+def authenticate_request(credentials: HTTPAuthorizationCredentials = Depends(token_auth_scheme)) -> None:
+    if credentials.credentials != STATIC_TOKEN:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid token")

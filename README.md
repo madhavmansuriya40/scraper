@@ -10,6 +10,7 @@ Scraps Web and gather info.
 ### Data Modeling
 
 ![Screenshot](./readme_assets/DataModeling.png)
+
 Notes:
 
 - This is high level data modeling
@@ -20,6 +21,8 @@ Notes:
 ### Data Flow
 
 ![Screenshot](./readme_assets/DataFlow.png)
+
+Notes
 
 - This is a high level data flow diagram and user interaction flow
 - Used Redis for caching

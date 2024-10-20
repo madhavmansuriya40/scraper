@@ -1,31 +1,51 @@
-import os
 import re
+import ast
 import requests
-from urllib.parse import urlparse
+
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 from schemas.schemas import ScrapeRequestSchema
+from cache.mem_cache import MemcachedCache
+from utils.files import Files
 
 
 class DentalStallScraper:
 
     @staticmethod
-    def get_image_filename(name: str, url: str) -> str:
-        _, ext = os.path.splitext(urlparse(url).path)
-        safe_name = name.replace(' ', '_').replace('/', '_')
-        return os.path.join("downloaded_images", f"{safe_name}{ext}")
+    def __extract_name(product: Tag) -> str:
+        product_tag = product.find(
+            "h2", class_="woo-loop-product__title").find("a")['href']
+        product_name_slug = product_tag.rstrip('/').split('/')[-1]
+        return product_name_slug.replace('-', ' ').title()
 
     @staticmethod
-    def download_image(url: str, save_path: str):
-        try:
-            response = requests.get(url)
-            response.raise_for_status()  # Raise an error for bad responses
-            with open(save_path, 'wb') as f:
-                f.write(response.content)
-        except Exception as e:
-            print(f"Failed to download image from {url}. Reason: {e}")
+    def __extract_price(product: Tag) -> float:
+        price = product.find(
+            "span", class_="woocommerce-Price-amount amount").text
+        match = re.findall(r"[-+]?\d*\.\d+|\d+", price)
+        amount = 0.0
+        if match:
+            amount = float(match[0])
+        return amount
 
-    def scrape_catalogue(scrap_req: ScrapeRequestSchema):
+    @staticmethod
+    def __extract_image_urls(product: Tag, name: str) -> tuple[str, str]:
+        image_tag = product.find(
+            "img", class_="attachment-woocommerce_thumbnail")
+        image_url = image_tag.get("data-lazy-src") or image_tag.get("src")
+        local_path = Files.get_local_path(name, image_url)
+        return image_url, local_path
+
+    @staticmethod
+    def __decode_cache(cached_data: bytes) -> list:
+        decoded_string = cached_data.decode('utf-8')
+        json_compatible_string = decoded_string.replace("'", '"')
+        return ast.literal_eval(json_compatible_string)
+
+    @staticmethod
+    def scrape_catalogue(scrap_req: ScrapeRequestSchema) -> list:
         base_url = scrap_req.url
+        cache = MemcachedCache()
         product_data = []
 
         proxies = {"http": scrap_req.proxy_url,
@@ -33,45 +53,34 @@ class DentalStallScraper:
 
         for page in range(1, scrap_req.page_limit + 1):
             url = base_url + str(page)
+
+            # check cache and return the details from here
+            cached_data = cache.get(url)
+            if cached_data:
+                print(f"Using cached data for page: {page}")
+                product_list = DentalStallScraper.__decode_cache(
+                    cached_data=cached_data)
+                product_data.append(product_list)
+                continue
+
+            # if not cached
             response = requests.get(url, proxies=proxies)
             soup = BeautifulSoup(response.text, 'html.parser')
-
             # Extract product details
             products = soup.find_all("div", class_="product-inner")
 
             for product in products:
 
-                # Step 1: Grab the href link
-                product_tag = product.find(
-                    "h2", class_="woo-loop-product__title").find("a")['href']
+                name = DentalStallScraper.__extract_name(product=product)
+                amount = DentalStallScraper.__extract_price(product=product)
+                image_url, local_path = DentalStallScraper.__extract_image_urls(
+                    product=product, name=name)
 
-                # Step 2: Extract the last part of the URL (product name)
-                product_name_slug = product_tag.rstrip('/').split('/')[-1]
+                Files.download_image(
+                    download_url=image_url, local_path=local_path)
 
-                # Step 3: Convert slug to title case
-                name = product_name_slug.replace('-', ' ').title()
-
-                price = product.find(
-                    "span", class_="woocommerce-Price-amount amount").text
-                match = re.findall(r"[-+]?\d*\.\d+|\d+", price)
-                amount = 0
-                if match:
-                    amount = float(match[0])
-
-                # Extract image URL
-                image_tag = product.find(
-                    "img", class_="attachment-woocommerce_thumbnail")
-                image_url = image_tag.get(
-                    "data-lazy-src") or image_tag.get("src")
-                print(image_url)
-
-                # Step 4: Download the image and save it locally
-                image_filename = DentalStallScraper.get_image_filename(
-                    name, image_url)
-                print(f'image_filename--> {image_filename}')
-                DentalStallScraper.download_image(image_url, image_filename)
-
+                cache.set(key=url, value=product_data)
                 product_data.append(
-                    {"name": name, "price": amount, "image": image_filename})
+                    {"name": name, "price": amount, "image": local_path})
 
         return product_data

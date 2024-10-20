@@ -7,3 +7,38 @@ services:
       - "8001:8001"
     volumes:
       - ./app:/app:rw
+    depends_on:
+      - memcached
+      - rabbitmq
+    environment:
+      STATIC_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6Im1hZEBtYXguY29tIn0.liqUJFFkNq5O_-lwWnF12xMzRhfV-vrxY1dYM0HRd9s"
+
+  memcached:
+    image: memcached:latest
+    ports:
+      - "11211:11211"
+
+  rabbitmq:
+    image: rabbitmq:management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  worker:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    volumes:
+      - ./app:/app:rw
+      - ./app/workers:/app/workers:rw
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    command: python -m workers.scrap
+    environment:
+      - PYTHONUNBUFFERED=1
