@@ -8,6 +8,7 @@ from schemas.schemas import ScrapeRequestSchema
 from cache.mem_cache import MemcachedCache
 from database.json_database import JSONDatabase
 from utils.files import Files
+from queue_manager import QueueManager
 
 
 class DentalStallScraper:
@@ -54,6 +55,7 @@ class DentalStallScraper:
 
         for page in range(1, scrap_req.page_limit + 1):
             url = base_url + str(page)
+            retry_limit = 2
 
             # check cache and return the details from here
             cached_data = cache.get(url)
@@ -65,27 +67,30 @@ class DentalStallScraper:
                     product_data.append(data)
                 continue
 
-            # try finding it from DB
+            try:
+                # if not in DB
+                response = requests.get(url, proxies=proxies)
+                soup = BeautifulSoup(response.text, 'html.parser')
+                # Extract product details
+                products = soup.find_all("div", class_="product-inner")
 
-            # if not in DB
-            response = requests.get(url, proxies=proxies)
-            soup = BeautifulSoup(response.text, 'html.parser')
-            # Extract product details
-            products = soup.find_all("div", class_="product-inner")
+                for product in products:
 
-            for product in products:
+                    name = DentalStallScraper.__extract_name(
+                        product=product)
+                    amount = DentalStallScraper.__extract_price(
+                        product=product)
+                    image_url, local_path = DentalStallScraper.__extract_image_urls(
+                        product=product, name=name)
 
-                name = DentalStallScraper.__extract_name(product=product)
-                amount = DentalStallScraper.__extract_price(product=product)
-                image_url, local_path = DentalStallScraper.__extract_image_urls(
-                    product=product, name=name)
+                    Files.download_image(
+                        download_url=image_url, local_path=local_path)
 
-                Files.download_image(
-                    download_url=image_url, local_path=local_path)
-
-                cache.set(key=url, value=product_data)
-                product_data.append(
-                    {"name": name, "price": amount, "image": local_path})
+                    cache.set(key=url, value=product_data)
+                    product_data.append(
+                        {"name": name, "price": amount, "image": local_path})
+            except Exception as ex:
+                raise ex
 
         # Save to DB and cache
         db = JSONDatabase()

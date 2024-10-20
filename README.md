@@ -28,3 +28,13 @@ Notes
 - Used Redis for caching
 - Using Queues and Workers will have a great impact when we think of scaling the system
 - Horizontal scaling would be a done just in a snap as we have workers in our architecture.
+
+### Notifications
+
+![Screenshot](./readme_assets/notif1.png)
+
+![Screenshot](./readme_assets/notif2.png)
+
+### DB
+
+![Screenshot](./readme_assets/db.png)

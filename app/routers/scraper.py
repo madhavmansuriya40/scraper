@@ -15,12 +15,11 @@ router = APIRouter(
 @router.post('/dental_stall', status_code=status.HTTP_202_ACCEPTED,  response_model=ScrapeResponseSchema)
 def scrap(request: ScrapeRequestSchema, credentials: HTTPAuthorizationCredentials = Depends(authenticate_request)):
     # when getting any request add it to the queue
-    user = User.get_user()
     try:
         event_payload = {
             'request': request.dict(),
             'retry_count': 0,
-            'user': user
+            'user': User.get_user()
         }
         queue_manager = QueueManager()
         queue_manager.add_to_queue(scrap_req=event_payload)
